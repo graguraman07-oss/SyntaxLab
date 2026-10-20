@@ -24,9 +24,9 @@ static int currentLine = 1;
 static int currentColumn = 1;
 
 static yy::location makeLocation(int length) {
-    yy::location result;
-    result.begin.line = currentLine;
-    result.begin.column = currentColumn;
+    yy::location loc;
+    loc.begin.line = currentLine;
+    loc.begin.column = currentColumn;
 
     for (int i = 0; i < length; ++i) {
         if (yytext[i] == '\n') {
@@ -37,9 +37,9 @@ static yy::location makeLocation(int length) {
         }
     }
 
-    result.end.line = currentLine;
-    result.end.column = currentColumn;
-    return result;
+    loc.end.line = currentLine;
+    loc.end.column = currentColumn;
+    return loc;
 }
 
 static void recordToken(
@@ -61,30 +61,101 @@ INTEGER     {DIGIT}+
 
 "int" {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
     recordToken("INT", yytext, line, column);
-    return yy::parser::make_INT(tokenLoc);
+    return yy::parser::make_INT(loc);
 }
 
 "print" {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
     recordToken("PRINT", yytext, line, column);
-    return yy::parser::make_PRINT(tokenLoc);
+    return yy::parser::make_PRINT(loc);
+}
+
+"if" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("IF", yytext, line, column);
+    return yy::parser::make_IF(loc);
+}
+
+"else" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("ELSE", yytext, line, column);
+    return yy::parser::make_ELSE(loc);
+}
+
+"while" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("WHILE", yytext, line, column);
+    return yy::parser::make_WHILE(loc);
+}
+
+"for" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("FOR", yytext, line, column);
+    return yy::parser::make_FOR(loc);
+}
+
+    /* Longest operators first. */
+"==" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("EQUAL", yytext, line, column);
+    return yy::parser::make_EQUAL(loc);
+}
+
+"!=" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("NOT_EQUAL", yytext, line, column);
+    return yy::parser::make_NOT_EQUAL(loc);
+}
+
+"<=" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("LESS_EQUAL", yytext, line, column);
+    return yy::parser::make_LESS_EQUAL(loc);
+}
+
+">=" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("GREATER_EQUAL", yytext, line, column);
+    return yy::parser::make_GREATER_EQUAL(loc);
+}
+
+"++" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("INCREMENT", yytext, line, column);
+    return yy::parser::make_INCREMENT(loc);
+}
+
+"--" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("DECREMENT", yytext, line, column);
+    return yy::parser::make_DECREMENT(loc);
 }
 
 {IDENTIFIER} {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
     recordToken("IDENTIFIER", yytext, line, column);
     return yy::parser::make_IDENTIFIER(
-        std::string(yytext, yyleng), tokenLoc
+        std::string(yytext, yyleng), loc
     );
 }
 
 {INTEGER} {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
 
     errno = 0;
     char* end = nullptr;
@@ -92,67 +163,102 @@ INTEGER     {DIGIT}+
 
     if (errno == ERANGE || end != yytext + yyleng) {
         recordToken("INVALID", yytext, line, column);
-        return yy::parser::make_INVALID(tokenLoc);
+        return yy::parser::make_INVALID(loc);
     }
 
     recordToken("NUMBER", yytext, line, column);
-    return yy::parser::make_NUMBER(value, tokenLoc);
+    return yy::parser::make_NUMBER(value, loc);
 }
 
 "+" {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
     recordToken("PLUS", yytext, line, column);
-    return yy::parser::make_PLUS(tokenLoc);
+    return yy::parser::make_PLUS(loc);
 }
 
 "-" {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
     recordToken("MINUS", yytext, line, column);
-    return yy::parser::make_MINUS(tokenLoc);
+    return yy::parser::make_MINUS(loc);
 }
 
 "*" {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
     recordToken("STAR", yytext, line, column);
-    return yy::parser::make_STAR(tokenLoc);
+    return yy::parser::make_STAR(loc);
 }
 
 "/" {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
     recordToken("SLASH", yytext, line, column);
-    return yy::parser::make_SLASH(tokenLoc);
+    return yy::parser::make_SLASH(loc);
 }
 
 "=" {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
     recordToken("ASSIGN", yytext, line, column);
-    return yy::parser::make_ASSIGN(tokenLoc);
+    return yy::parser::make_ASSIGN(loc);
+}
+
+"<" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("LESS", yytext, line, column);
+    return yy::parser::make_LESS(loc);
+}
+
+">" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("GREATER", yytext, line, column);
+    return yy::parser::make_GREATER(loc);
+}
+
+"&" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("AMPERSAND", yytext, line, column);
+    return yy::parser::make_AMPERSAND(loc);
+}
+
+"{" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("LBRACE", yytext, line, column);
+    return yy::parser::make_LBRACE(loc);
+}
+
+"}" {
+    int line = currentLine, column = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("RBRACE", yytext, line, column);
+    return yy::parser::make_RBRACE(loc);
 }
 
 "(" {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
     recordToken("LPAREN", yytext, line, column);
-    return yy::parser::make_LPAREN(tokenLoc);
+    return yy::parser::make_LPAREN(loc);
 }
 
 ")" {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
     recordToken("RPAREN", yytext, line, column);
-    return yy::parser::make_RPAREN(tokenLoc);
+    return yy::parser::make_RPAREN(loc);
 }
 
 ";" {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
     recordToken("SEMICOLON", yytext, line, column);
-    return yy::parser::make_SEMICOLON(tokenLoc);
+    return yy::parser::make_SEMICOLON(loc);
 }
 
 [ \t\r]+ {
@@ -165,17 +271,17 @@ INTEGER     {DIGIT}+
 
 . {
     int line = currentLine, column = currentColumn;
-    auto tokenLoc = makeLocation(yyleng);
+    auto loc = makeLocation(yyleng);
     recordToken("INVALID", yytext, line, column);
-    return yy::parser::make_INVALID(tokenLoc);
+    return yy::parser::make_INVALID(loc);
 }
 
 <<EOF>> {
-    yy::location endLoc;
-    endLoc.begin.line = currentLine;
-    endLoc.begin.column = currentColumn;
-    endLoc.end = endLoc.begin;
-    return yy::parser::make_YYEOF(endLoc);
+    yy::location loc;
+    loc.begin.line = currentLine;
+    loc.begin.column = currentColumn;
+    loc.end = loc.begin;
+    return yy::parser::make_YYEOF(loc);
 }
 
 %%
