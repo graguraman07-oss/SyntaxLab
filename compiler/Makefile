@@ -4,7 +4,7 @@ FLEX = flex
 BISON = bison
 
 BUILD_DIR = build
-TARGET = $(BUILD_DIR)/compiler.exe
+TARGET = $(BUILD_DIR)/compiler
 
 BISON_CPP = $(BUILD_DIR)/parser.cpp
 BISON_HPP = $(BUILD_DIR)/parser.hpp
