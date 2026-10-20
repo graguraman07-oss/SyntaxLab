@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+backend/.venv/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Generated compiler files
+compiler/build/
+*.o
+*.exe
+
+# Editor and operating system
+.vscode/
+.DS_Store
+Thumbs.db

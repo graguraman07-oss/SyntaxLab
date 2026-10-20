@@ -1,0 +1,25 @@
+CASE 1: Valid declaration and use
+int x = 10;
+print(x);
+Expected: no semantic errors
+
+CASE 2: Undeclared variable
+print(y);
+Expected: use of undeclared variable 'y'
+
+CASE 3: Assignment to undeclared variable
+z = 5;
+Expected: assignment to undeclared variable 'z'
+
+CASE 4: Duplicate declaration
+int x = 1;
+int x = 2;
+Expected: duplicate declaration diagnostic
+
+CASE 5: Division by zero
+int x = 10 / 0;
+Expected: division by literal zero diagnostic
+
+CASE 6: Undeclared variable in expression
+int x = y + 2;
+Expected: use of undeclared variable 'y'
