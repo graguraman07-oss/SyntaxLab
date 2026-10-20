@@ -1,8 +1,6 @@
 
 #include "semantic.hpp"
 
-#include <string>
-
 namespace compiler {
 
 std::vector<Diagnostic>
@@ -32,8 +30,6 @@ void SemanticAnalyzer::analyzeStatement(const Stmt& statement) {
                     "' is already declared."
             });
         } else {
-            // Register before checking the initializer so that
-            // self-references are treated as declared.
             declared_.insert(declaration->name);
         }
 
@@ -70,6 +66,68 @@ void SemanticAnalyzer::analyzeStatement(const Stmt& statement) {
         if (printStatement->expression) {
             analyzeExpression(*printStatement->expression);
         }
+
+        return;
+    }
+
+    if (const auto* ifStatement =
+            dynamic_cast<const IfStmt*>(&statement)) {
+
+        if (ifStatement->condition) {
+            analyzeExpression(*ifStatement->condition);
+        }
+
+        for (const auto& child : ifStatement->thenBody) {
+            if (child) {
+                analyzeStatement(*child);
+            }
+        }
+
+        for (const auto& child : ifStatement->elseBody) {
+            if (child) {
+                analyzeStatement(*child);
+            }
+        }
+
+        return;
+    }
+
+    if (const auto* whileStatement =
+            dynamic_cast<const WhileStmt*>(&statement)) {
+
+        if (whileStatement->condition) {
+            analyzeExpression(*whileStatement->condition);
+        }
+
+        for (const auto& child : whileStatement->body) {
+            if (child) {
+                analyzeStatement(*child);
+            }
+        }
+
+        return;
+    }
+
+    if (const auto* forStatement =
+            dynamic_cast<const ForStmt*>(&statement)) {
+
+        if (forStatement->initializer) {
+            analyzeStatement(*forStatement->initializer);
+        }
+
+        if (forStatement->condition) {
+            analyzeExpression(*forStatement->condition);
+        }
+
+        if (forStatement->increment) {
+            analyzeStatement(*forStatement->increment);
+        }
+
+        for (const auto& child : forStatement->body) {
+            if (child) {
+                analyzeStatement(*child);
+            }
+        }
     }
 }
 
@@ -101,9 +159,10 @@ void SemanticAnalyzer::analyzeExpression(const Expr& expression) {
             analyzeExpression(*binary->right);
         }
 
-        if (binary->op == '/' && binary->right) {
+        if (binary->op == "/" && binary->right) {
             if (const auto* number =
-                    dynamic_cast<const NumberExpr*>(binary->right.get())) {
+                    dynamic_cast<const NumberExpr*>(
+                        binary->right.get())) {
 
                 if (number->value == 0) {
                     diagnostics_.push_back({
@@ -114,6 +173,16 @@ void SemanticAnalyzer::analyzeExpression(const Expr& expression) {
                     });
                 }
             }
+        }
+
+        return;
+    }
+
+    if (const auto* unary =
+            dynamic_cast<const UnaryExpr*>(&expression)) {
+
+        if (unary->operand) {
+            analyzeExpression(*unary->operand);
         }
     }
 }
