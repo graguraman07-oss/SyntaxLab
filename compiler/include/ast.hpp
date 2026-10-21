@@ -33,6 +33,27 @@ struct NumberExpr final : Expr {
         : Expr(loc), value(v) {}
 };
 
+struct FloatExpr final : Expr {
+    double value;
+
+    FloatExpr(double v, SourceLocation loc = {})
+        : Expr(loc), value(v) {}
+};
+
+struct CharacterExpr final : Expr {
+    std::string value;
+
+    CharacterExpr(std::string v, SourceLocation loc = {})
+        : Expr(loc), value(std::move(v)) {}
+};
+
+struct StringExpr final : Expr {
+    std::string value;
+
+    StringExpr(std::string v, SourceLocation loc = {})
+        : Expr(loc), value(std::move(v)) {}
+};
+
 struct IdentifierExpr final : Expr {
     std::string name;
 
@@ -40,7 +61,6 @@ struct IdentifierExpr final : Expr {
         : Expr(loc), name(std::move(n)) {}
 };
 
-// Supports arithmetic and comparison operators.
 struct BinaryExpr final : Expr {
     std::string op;
     ExprPtr left;
@@ -54,7 +74,6 @@ struct BinaryExpr final : Expr {
           right(std::move(rhs)) {}
 };
 
-// Supports address-of (&x), dereferencing (*p), and unary minus.
 struct UnaryExpr final : Expr {
     std::string op;
     ExprPtr operand;
@@ -76,13 +95,16 @@ struct DeclarationStmt final : Stmt {
     std::string name;
     ExprPtr initializer;
     bool isPointer;
+    std::string dataType;
 
     DeclarationStmt(std::string n, ExprPtr init,
-                    SourceLocation loc = {}, bool pointer = false)
+                    SourceLocation loc = {}, bool pointer = false,
+                    std::string type = "int")
         : Stmt(loc),
           name(std::move(n)),
           initializer(std::move(init)),
-          isPointer(pointer) {}
+          isPointer(pointer),
+          dataType(std::move(type)) {}
 };
 
 struct AssignmentStmt final : Stmt {
@@ -149,4 +171,4 @@ struct Program {
     std::vector<StmtPtr> statements;
 };
 
-} // namespace compiler
+}

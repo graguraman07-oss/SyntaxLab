@@ -42,12 +42,9 @@ static yy::location makeLocation(int length) {
     return loc;
 }
 
-static void recordToken(
-    const std::string& type,
-    const std::string& value,
-    int line,
-    int column
-) {
+static void recordToken(const std::string& type,
+                        const std::string& value,
+                        int line, int column) {
     collectedTokens.push_back({type, value, line, column});
 }
 %}
@@ -56,208 +53,253 @@ DIGIT       [0-9]
 LETTER      [a-zA-Z_]
 IDENTIFIER  {LETTER}({LETTER}|{DIGIT})*
 INTEGER     {DIGIT}+
+FLOATING    {DIGIT}+"."{DIGIT}+
+STRINGLIT   \"([^\\\"\n]|\\.)*\"
+CHARLIT     \'([^\\\'\n]|\\.)\'
 
 %%
 
 "int" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("INT", yytext, line, column);
+    recordToken("INT", yytext, l, c);
     return yy::parser::make_INT(loc);
 }
 
-"print" {
-    int line = currentLine, column = currentColumn;
+"float" {
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("PRINT", yytext, line, column);
+    recordToken("FLOAT", yytext, l, c);
+    return yy::parser::make_FLOAT(loc);
+}
+
+"char" {
+    int l = currentLine, c = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("CHAR", yytext, l, c);
+    return yy::parser::make_CHAR(loc);
+}
+
+"print" {
+    int l = currentLine, c = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("PRINT", yytext, l, c);
     return yy::parser::make_PRINT(loc);
 }
 
 "if" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("IF", yytext, line, column);
+    recordToken("IF", yytext, l, c);
     return yy::parser::make_IF(loc);
 }
 
 "else" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("ELSE", yytext, line, column);
+    recordToken("ELSE", yytext, l, c);
     return yy::parser::make_ELSE(loc);
 }
 
 "while" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("WHILE", yytext, line, column);
+    recordToken("WHILE", yytext, l, c);
     return yy::parser::make_WHILE(loc);
 }
 
 "for" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("FOR", yytext, line, column);
+    recordToken("FOR", yytext, l, c);
     return yy::parser::make_FOR(loc);
 }
 
-    /* Longest operators first. */
 "==" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("EQUAL", yytext, line, column);
+    recordToken("EQUAL", yytext, l, c);
     return yy::parser::make_EQUAL(loc);
 }
 
 "!=" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("NOT_EQUAL", yytext, line, column);
+    recordToken("NOT_EQUAL", yytext, l, c);
     return yy::parser::make_NOT_EQUAL(loc);
 }
 
 "<=" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("LESS_EQUAL", yytext, line, column);
+    recordToken("LESS_EQUAL", yytext, l, c);
     return yy::parser::make_LESS_EQUAL(loc);
 }
 
 ">=" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("GREATER_EQUAL", yytext, line, column);
+    recordToken("GREATER_EQUAL", yytext, l, c);
     return yy::parser::make_GREATER_EQUAL(loc);
 }
 
 "++" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("INCREMENT", yytext, line, column);
+    recordToken("INCREMENT", yytext, l, c);
     return yy::parser::make_INCREMENT(loc);
 }
 
 "--" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("DECREMENT", yytext, line, column);
+    recordToken("DECREMENT", yytext, l, c);
     return yy::parser::make_DECREMENT(loc);
 }
 
-{IDENTIFIER} {
-    int line = currentLine, column = currentColumn;
+{STRINGLIT} {
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("IDENTIFIER", yytext, line, column);
-    return yy::parser::make_IDENTIFIER(
-        std::string(yytext, yyleng), loc
-    );
+    std::string value(yytext + 1, yyleng - 2);
+    recordToken("STRING", value, l, c);
+    return yy::parser::make_STRING_LITERAL(value, loc);
+}
+
+{CHARLIT} {
+    int l = currentLine, c = currentColumn;
+    auto loc = makeLocation(yyleng);
+    std::string value(yytext + 1, yyleng - 2);
+    recordToken("CHARACTER", value, l, c);
+    return yy::parser::make_CHARACTER_LITERAL(value, loc);
+}
+
+{FLOATING} {
+    int l = currentLine, c = currentColumn;
+    auto loc = makeLocation(yyleng);
+    errno = 0;
+    char* end = nullptr;
+    double value = std::strtod(yytext, &end);
+
+    if (errno == ERANGE || end != yytext + yyleng) {
+        recordToken("INVALID", yytext, l, c);
+        return yy::parser::make_INVALID(loc);
+    }
+
+    recordToken("FLOAT_NUMBER", yytext, l, c);
+    return yy::parser::make_FLOAT_NUMBER(value, loc);
+}
+
+{IDENTIFIER} {
+    int l = currentLine, c = currentColumn;
+    auto loc = makeLocation(yyleng);
+    recordToken("IDENTIFIER", yytext, l, c);
+    return yy::parser::make_IDENTIFIER(std::string(yytext, yyleng), loc);
 }
 
 {INTEGER} {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-
     errno = 0;
     char* end = nullptr;
     long value = std::strtol(yytext, &end, 10);
 
     if (errno == ERANGE || end != yytext + yyleng) {
-        recordToken("INVALID", yytext, line, column);
+        recordToken("INVALID", yytext, l, c);
         return yy::parser::make_INVALID(loc);
     }
 
-    recordToken("NUMBER", yytext, line, column);
+    recordToken("NUMBER", yytext, l, c);
     return yy::parser::make_NUMBER(value, loc);
 }
 
 "+" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("PLUS", yytext, line, column);
+    recordToken("PLUS", yytext, l, c);
     return yy::parser::make_PLUS(loc);
 }
 
 "-" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("MINUS", yytext, line, column);
+    recordToken("MINUS", yytext, l, c);
     return yy::parser::make_MINUS(loc);
 }
 
 "*" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("STAR", yytext, line, column);
+    recordToken("STAR", yytext, l, c);
     return yy::parser::make_STAR(loc);
 }
 
 "/" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("SLASH", yytext, line, column);
+    recordToken("SLASH", yytext, l, c);
     return yy::parser::make_SLASH(loc);
 }
 
 "=" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("ASSIGN", yytext, line, column);
+    recordToken("ASSIGN", yytext, l, c);
     return yy::parser::make_ASSIGN(loc);
 }
 
 "<" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("LESS", yytext, line, column);
+    recordToken("LESS", yytext, l, c);
     return yy::parser::make_LESS(loc);
 }
 
 ">" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("GREATER", yytext, line, column);
+    recordToken("GREATER", yytext, l, c);
     return yy::parser::make_GREATER(loc);
 }
 
 "&" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("AMPERSAND", yytext, line, column);
+    recordToken("AMPERSAND", yytext, l, c);
     return yy::parser::make_AMPERSAND(loc);
 }
 
 "{" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("LBRACE", yytext, line, column);
+    recordToken("LBRACE", yytext, l, c);
     return yy::parser::make_LBRACE(loc);
 }
 
 "}" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("RBRACE", yytext, line, column);
+    recordToken("RBRACE", yytext, l, c);
     return yy::parser::make_RBRACE(loc);
 }
 
 "(" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("LPAREN", yytext, line, column);
+    recordToken("LPAREN", yytext, l, c);
     return yy::parser::make_LPAREN(loc);
 }
 
 ")" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("RPAREN", yytext, line, column);
+    recordToken("RPAREN", yytext, l, c);
     return yy::parser::make_RPAREN(loc);
 }
 
 ";" {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("SEMICOLON", yytext, line, column);
+    recordToken("SEMICOLON", yytext, l, c);
     return yy::parser::make_SEMICOLON(loc);
 }
 
@@ -270,9 +312,9 @@ INTEGER     {DIGIT}+
 }
 
 . {
-    int line = currentLine, column = currentColumn;
+    int l = currentLine, c = currentColumn;
     auto loc = makeLocation(yyleng);
-    recordToken("INVALID", yytext, line, column);
+    recordToken("INVALID", yytext, l, c);
     return yy::parser::make_INVALID(loc);
 }
 

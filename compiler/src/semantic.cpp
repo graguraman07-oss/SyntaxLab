@@ -132,6 +132,13 @@ void SemanticAnalyzer::analyzeStatement(const Stmt& statement) {
 }
 
 void SemanticAnalyzer::analyzeExpression(const Expr& expression) {
+    if (dynamic_cast<const NumberExpr*>(&expression) ||
+        dynamic_cast<const FloatExpr*>(&expression) ||
+        dynamic_cast<const CharacterExpr*>(&expression) ||
+        dynamic_cast<const StringExpr*>(&expression)) {
+        return;
+    }
+
     if (const auto* identifier =
             dynamic_cast<const IdentifierExpr*>(&expression)) {
 
@@ -173,6 +180,20 @@ void SemanticAnalyzer::analyzeExpression(const Expr& expression) {
                     });
                 }
             }
+
+            if (const auto* number =
+                    dynamic_cast<const FloatExpr*>(
+                        binary->right.get())) {
+
+                if (number->value == 0.0) {
+                    diagnostics_.push_back({
+                        "semantic",
+                        binary->right->location.line,
+                        binary->right->location.column,
+                        "Division by literal zero."
+                    });
+                }
+            }
         }
 
         return;
@@ -187,4 +208,4 @@ void SemanticAnalyzer::analyzeExpression(const Expr& expression) {
     }
 }
 
-} // namespace compiler
+}
