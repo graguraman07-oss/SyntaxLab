@@ -2,19 +2,60 @@
 import { useState } from "react";
 import "./App.css";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_URL = (
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+).replace(/\/+$/, "");
 
 const STARTER_CODE = `int x = 10;
-print(x + 2);`;
+float price = 25.5;
+char grade = 'A';
+print(x + 2);
+print(price);
+print(grade);
+print("Hello, SyntaxLab!");`;
 
-// Recursively display the compiler's AST as a visual tree.
+async function readResponse(response) {
+  const text = await response.text();
+
+  let data;
+
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(
+      `The server returned an invalid response (${response.status}).`
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      typeof data.detail === "string"
+        ? data.detail
+        : `Request failed (${response.status}).`
+    );
+  }
+
+  return data;
+}
 
 function AstTree({ node, edgeLabel }) {
-  if (node == null) return null;
+  if (node == null) {
+    return (
+      <div className="ast-node ast-leaf">
+        <div className="ast-card ast-value-card">
+          <span className="ast-kind">Empty</span>
+          <strong>null</strong>
+        </div>
+      </div>
+    );
+  }
 
   if (typeof node !== "object") {
     return (
       <div className="ast-node ast-leaf">
+        {edgeLabel !== undefined && (
+          <div className="ast-edge-label">{String(edgeLabel)}</div>
+        )}
         <div className="ast-card ast-value-card">
           <span className="ast-kind">Value</span>
           <strong>{String(node)}</strong>
@@ -24,6 +65,17 @@ function AstTree({ node, edgeLabel }) {
   }
 
   if (Array.isArray(node)) {
+    if (node.length === 0) {
+      return (
+        <div className="ast-node ast-leaf">
+          <div className="ast-card ast-value-card">
+            <span className="ast-kind">Array</span>
+            <strong>Empty</strong>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="ast-forest">
         {node.map((child, index) => (
@@ -61,11 +113,15 @@ function AstTree({ node, edgeLabel }) {
     normalizedType.includes("declaration") ||
     normalizedType.includes("statement") ||
     normalizedType.includes("print") ||
-    normalizedType.includes("assign")
+    normalizedType.includes("assign") ||
+    normalizedType === "if" ||
+    normalizedType === "while" ||
+    normalizedType === "for"
   ) {
     nodeClass = "ast-statement";
   } else if (
     normalizedType.includes("binary") ||
+    normalizedType.includes("unary") ||
     normalizedType.includes("expression") ||
     normalizedType.includes("operator")
   ) {
@@ -73,6 +129,9 @@ function AstTree({ node, edgeLabel }) {
   } else if (
     normalizedType.includes("number") ||
     normalizedType.includes("integer") ||
+    normalizedType.includes("float") ||
+    normalizedType.includes("character") ||
+    normalizedType.includes("string") ||
     normalizedType.includes("literal") ||
     normalizedType.includes("identifier") ||
     normalizedType.includes("variable")
@@ -110,7 +169,6 @@ function AstTree({ node, edgeLabel }) {
   );
 }
 
-
 export default function App() {
   const [sourceCode, setSourceCode] = useState(STARTER_CODE);
   const [result, setResult] = useState(null);
@@ -130,26 +188,23 @@ export default function App() {
     try {
       const response = await fetch(`${API_URL}/api/compile`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source_code: codeToCompile }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          source_code: codeToCompile,
+        }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          typeof data.detail === "string"
-            ? data.detail
-            : `Compilation request failed (${response.status})`
-        );
-      }
-
+      const data = await readResponse(response);
       setResult(data);
+
       return data;
     } catch (err) {
       setError(
-        `${err.message}. Make sure FastAPI is running at ${API_URL}.`
+        `${err.message || "Compilation failed"} Check that the backend is available at ${API_URL}.`
       );
+
       return null;
     } finally {
       setLoading(false);
@@ -163,49 +218,59 @@ export default function App() {
     setError("");
 
     try {
-      // Compile first to obtain current diagnostics.
-      const compileResponse = await fetch(`${API_URL}/api/compile`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source_code: sourceCode }),
-      });
+      let diagnostics = result?.diagnostics;
 
-      const compileData = await compileResponse.json();
+      if (!result) {
+        const compileResponse = await fetch(`${API_URL}/api/compile`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            source_code: sourceCode,
+          }),
+        });
 
-      if (!compileResponse.ok) {
-        throw new Error(
-          typeof compileData.detail === "string"
-            ? compileData.detail
-            : "Could not retrieve compiler diagnostics."
-        );
+        const compileData = await readResponse(compileResponse);
+
+        setResult(compileData);
+        diagnostics = compileData.diagnostics ?? [];
       }
 
-      setResult(compileData);
-
-      // Request AI-powered correction suggestions.
       const response = await fetch(`${API_URL}/api/ai-correct`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           source_code: sourceCode,
-          diagnostics: compileData.diagnostics ?? [],
+          diagnostics: diagnostics ?? [],
         }),
       });
 
-      const data = await response.json();
+      const data = await readResponse(response);
 
-      if (!response.ok) {
-        throw new Error(
-          typeof data.detail === "string"
-            ? data.detail
-            : `AI correction failed (${response.status})`
-        );
+      if (
+        !data ||
+        typeof data !== "object"
+      ) {
+        throw new Error("The AI service returned an invalid response.");
       }
 
       setCorrection(data);
+
+      if (
+        !data.corrected_code &&
+        !data.explanation &&
+        !data.suggestions?.length
+      ) {
+        setCorrectionError(
+          "The AI service returned no correction or explanation. Try again."
+        );
+      }
     } catch (err) {
       setCorrectionError(
-        `${err.message}. Check that the backend is running at ${API_URL}.`
+        `${err.message || "AI correction failed"} Check that the backend is available at ${API_URL}.`
       );
     } finally {
       setCorrecting(false);
@@ -213,14 +278,32 @@ export default function App() {
   }
 
   async function applyCorrection() {
-    if (!correction?.corrected_code) return;
+    if (typeof correction?.corrected_code !== "string") {
+      return;
+    }
 
     const correctedCode = correction.corrected_code;
 
     setSourceCode(correctedCode);
     setCorrection(null);
+
     await compileCode(correctedCode);
   }
+
+  function updateSourceCode(value) {
+    setSourceCode(value);
+    setCorrection(null);
+    setCorrectionError("");
+    setError("");
+  }
+
+  const tokens = Array.isArray(result?.tokens) ? result.tokens : [];
+  const diagnostics = Array.isArray(result?.diagnostics)
+    ? result.diagnostics
+    : [];
+  const statements = Array.isArray(result?.ast?.statements)
+    ? result.ast.statements
+    : [];
 
   return (
     <main className="app">
@@ -261,13 +344,8 @@ export default function App() {
           <textarea
             className="code-editor"
             value={sourceCode}
-            onChange={(event) => {
-              setSourceCode(event.target.value);
-              setCorrection(null);
-              setCorrectionError("");
-              setError("");
-            }}
-            spellCheck="false"
+            onChange={(event) => updateSourceCode(event.target.value)}
+            spellCheck={false}
             aria-label="Source code editor"
             placeholder="Write your program here..."
           />
@@ -279,9 +357,7 @@ export default function App() {
               <button
                 className="compile-button"
                 onClick={() => compileCode()}
-                disabled={
-                  loading || correcting || !sourceCode.trim()
-                }
+                disabled={loading || correcting || !sourceCode.trim()}
               >
                 {loading ? "Compiling..." : "▶ Compile code"}
               </button>
@@ -289,9 +365,7 @@ export default function App() {
               <button
                 className="correction-button"
                 onClick={suggestCorrection}
-                disabled={
-                  loading || correcting || !sourceCode.trim()
-                }
+                disabled={loading || correcting || !sourceCode.trim()}
               >
                 {correcting ? "AI is analyzing..." : "✦ AI Correction"}
               </button>
@@ -308,17 +382,19 @@ export default function App() {
             <section className="correction-panel">
               <h3>AI Correction Suggestions</h3>
 
-              <p>{correction.explanation}</p>
+              {correction.explanation && <p>{correction.explanation}</p>}
 
-              {correction.suggestions?.length > 0 && (
-                <ul>
-                  {correction.suggestions.map((suggestion, index) => (
-                    <li key={index}>{suggestion}</li>
-                  ))}
-                </ul>
-              )}
+              {Array.isArray(correction.suggestions) &&
+                correction.suggestions.length > 0 && (
+                  <ul>
+                    {correction.suggestions.map((suggestion, index) => (
+                      <li key={index}>{suggestion}</li>
+                    ))}
+                  </ul>
+                )}
 
-              {correction.corrected_code ? (
+              {typeof correction.corrected_code === "string" &&
+              correction.corrected_code.length > 0 ? (
                 <>
                   <h4>Proposed corrected code</h4>
 
@@ -342,8 +418,8 @@ export default function App() {
               )}
 
               <p className="muted">
-                AI-generated corrections may be incorrect. Always review
-                the code and check the compiler results.
+                AI-generated corrections may be incorrect. Review the code
+                and check the compiler results before using it.
               </p>
             </section>
           )}
@@ -386,26 +462,24 @@ export default function App() {
               <div className="summary-grid">
                 <div className="summary-card">
                   <span>Tokens</span>
-                  <strong>{result.tokens?.length ?? 0}</strong>
+                  <strong>{tokens.length}</strong>
                 </div>
 
                 <div className="summary-card">
                   <span>Statements</span>
-                  <strong>
-                    {result.ast?.statements?.length ?? 0}
-                  </strong>
+                  <strong>{statements.length}</strong>
                 </div>
 
                 <div className="summary-card">
                   <span>Diagnostics</span>
-                  <strong>{result.diagnostics?.length ?? 0}</strong>
+                  <strong>{diagnostics.length}</strong>
                 </div>
               </div>
 
               <section className="output-section">
                 <h4>Lexical Tokens</h4>
 
-                {result.tokens?.length ? (
+                {tokens.length > 0 ? (
                   <div className="table-wrap">
                     <table>
                       <thead>
@@ -418,20 +492,20 @@ export default function App() {
                       </thead>
 
                       <tbody>
-                        {result.tokens.map((token, index) => (
+                        {tokens.map((token, index) => (
                           <tr
                             key={`${token.line}-${token.column}-${index}`}
                           >
                             <td>
                               <code className="token-type">
-                                {token.type}
+                                {token.type ?? "Unknown"}
                               </code>
                             </td>
                             <td>
-                              <code>{token.value}</code>
+                              <code>{String(token.value ?? "")}</code>
                             </td>
-                            <td>{token.line}</td>
-                            <td>{token.column}</td>
+                            <td>{token.line ?? "-"}</td>
+                            <td>{token.column ?? "-"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -457,20 +531,21 @@ export default function App() {
               <section className="output-section">
                 <h4>Diagnostics</h4>
 
-                {result.diagnostics?.length ? (
-                  result.diagnostics.map((diagnostic, index) => (
+                {diagnostics.length > 0 ? (
+                  diagnostics.map((diagnostic, index) => (
                     <div className="diagnostic" key={index}>
                       <div className="diagnostic-top">
                         <span className="diagnostic-phase">
-                          {diagnostic.phase}
+                          {diagnostic.phase ?? "compiler"}
                         </span>
 
                         <span>
-                          Line {diagnostic.line}, column {diagnostic.column}
+                          Line {diagnostic.line ?? "-"}, column{" "}
+                          {diagnostic.column ?? "-"}
                         </span>
                       </div>
 
-                      <p>{diagnostic.message}</p>
+                      <p>{diagnostic.message ?? "Unknown diagnostic"}</p>
                     </div>
                   ))
                 ) : (

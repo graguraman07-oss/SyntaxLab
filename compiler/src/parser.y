@@ -36,6 +36,8 @@
 %parse-param { std::vector<compiler::Diagnostic>& diagnostics }
 
 %token INT "int"
+%token FLOAT "float"
+%token CHAR "char"
 %token PRINT "print"
 %token IF "if"
 %token ELSE "else"
@@ -44,6 +46,9 @@
 
 %token <std::string> IDENTIFIER "identifier"
 %token <long> NUMBER "integer"
+%token <double> FLOAT_NUMBER "floating-point number"
+%token <std::string> STRING_LITERAL "string literal"
+%token <std::string> CHARACTER_LITERAL "character literal"
 
 %token PLUS "+"
 %token MINUS "-"
@@ -65,7 +70,6 @@
 %token LBRACE "{"
 %token RBRACE "}"
 %token SEMICOLON ";"
-
 %token INVALID "invalid token"
 
 %type <compiler::ExprPtr> expression equality relational
@@ -126,28 +130,56 @@ declaration:
       {
           $$ = std::make_unique<compiler::DeclarationStmt>(
               std::move($2), std::move($4),
-              toSourceLocation(@1), false
+              toSourceLocation(@1), false, "int"
+          );
+      }
+    | FLOAT IDENTIFIER ASSIGN expression SEMICOLON
+      {
+          $$ = std::make_unique<compiler::DeclarationStmt>(
+              std::move($2), std::move($4),
+              toSourceLocation(@1), false, "float"
+          );
+      }
+    | CHAR IDENTIFIER ASSIGN expression SEMICOLON
+      {
+          $$ = std::make_unique<compiler::DeclarationStmt>(
+              std::move($2), std::move($4),
+              toSourceLocation(@1), false, "char"
           );
       }
     | INT STAR IDENTIFIER ASSIGN expression SEMICOLON
       {
           $$ = std::make_unique<compiler::DeclarationStmt>(
               std::move($3), std::move($5),
-              toSourceLocation(@1), true
+              toSourceLocation(@1), true, "int"
           );
       }
     | INT IDENTIFIER SEMICOLON
       {
           $$ = std::make_unique<compiler::DeclarationStmt>(
               std::move($2), nullptr,
-              toSourceLocation(@1), false
+              toSourceLocation(@1), false, "int"
+          );
+      }
+    | FLOAT IDENTIFIER SEMICOLON
+      {
+          $$ = std::make_unique<compiler::DeclarationStmt>(
+              std::move($2), nullptr,
+              toSourceLocation(@1), false, "float"
+          );
+      }
+    | CHAR IDENTIFIER SEMICOLON
+      {
+          $$ = std::make_unique<compiler::DeclarationStmt>(
+              std::move($2), nullptr,
+              toSourceLocation(@1), false, "char"
           );
       }
     | INT STAR IDENTIFIER SEMICOLON
       {
           $$ = std::make_unique<compiler::DeclarationStmt>(
               std::move($3), nullptr,
-              toSourceLocation(@1), true
+              toSourceLocation(@1), true, "int"
           );
       }
     ;
@@ -241,30 +273,28 @@ for_statement:
               std::move($8), toSourceLocation(@1)
           );
       }
+    | FOR LPAREN for_initializer SEMICOLON for_increment RPAREN block
+      {
+          $$ = std::make_unique<compiler::ForStmt>(
+              std::move($3), nullptr, std::move($5),
+              std::move($7), toSourceLocation(@1)
+          );
+      }
     ;
 
 for_initializer:
-      INT IDENTIFIER ASSIGN expression SEMICOLON
-      {
-          $$ = std::make_unique<compiler::DeclarationStmt>(
-              std::move($2), std::move($4),
-              toSourceLocation(@1), false
-          );
-      }
-    | IDENTIFIER ASSIGN expression SEMICOLON
-      {
-          $$ = std::make_unique<compiler::AssignmentStmt>(
-              std::move($1), std::move($3), toSourceLocation(@1)
-          );
-      }
+      declaration
+      { $$ = std::move($1); }
+    | assignment
+      { $$ = std::move($1); }
     | SEMICOLON
-      {
-          $$ = nullptr;
-      }
+      { $$ = nullptr; }
     ;
 
 for_increment:
-      IDENTIFIER INCREMENT
+      assignment
+      { $$ = std::move($1); }
+    | IDENTIFIER INCREMENT
       {
           auto oldValue = std::make_unique<compiler::IdentifierExpr>(
               $1, toSourceLocation(@1)
@@ -277,7 +307,8 @@ for_increment:
               toSourceLocation(@2)
           );
           $$ = std::make_unique<compiler::AssignmentStmt>(
-              std::move($1), std::move(sum), toSourceLocation(@1)
+              std::move($1), std::move(sum),
+              toSourceLocation(@1)
           );
       }
     | IDENTIFIER DECREMENT
@@ -297,30 +328,18 @@ for_increment:
               toSourceLocation(@1)
           );
       }
-    | IDENTIFIER ASSIGN expression
-      {
-          $$ = std::make_unique<compiler::AssignmentStmt>(
-              std::move($1), std::move($3), toSourceLocation(@1)
-          );
-      }
     | %empty
-      {
-          $$ = nullptr;
-      }
+      { $$ = nullptr; }
     ;
 
 block:
       LBRACE statements RBRACE
-      {
-          $$ = std::move($2);
-      }
+      { $$ = std::move($2); }
     ;
 
 statements:
       %empty
-      {
-          $$ = std::vector<compiler::StmtPtr>{};
-      }
+      { $$ = std::vector<compiler::StmtPtr>{}; }
     | statements statement
       {
           $$ = std::move($1);
@@ -388,7 +407,9 @@ relational:
     ;
 
 additive:
-      additive PLUS term
+      term
+      { $$ = std::move($1); }
+    | additive PLUS term
       {
           $$ = std::make_unique<compiler::BinaryExpr>(
               "+", std::move($1), std::move($3),
@@ -402,12 +423,12 @@ additive:
               toSourceLocation(@2)
           );
       }
-    | term
-      { $$ = std::move($1); }
     ;
 
 term:
-      term STAR unary
+      unary
+      { $$ = std::move($1); }
+    | term STAR unary
       {
           $$ = std::make_unique<compiler::BinaryExpr>(
               "*", std::move($1), std::move($3),
@@ -421,12 +442,12 @@ term:
               toSourceLocation(@2)
           );
       }
-    | unary
-      { $$ = std::move($1); }
     ;
 
 unary:
-      MINUS unary %prec UMINUS
+      factor
+      { $$ = std::move($1); }
+    | MINUS unary %prec UMINUS
       {
           $$ = std::make_unique<compiler::UnaryExpr>(
               "-", std::move($2), toSourceLocation(@1)
@@ -444,8 +465,6 @@ unary:
               "*", std::move($2), toSourceLocation(@1)
           );
       }
-    | factor
-      { $$ = std::move($1); }
     ;
 
 factor:
@@ -455,6 +474,24 @@ factor:
               $1, toSourceLocation(@1)
           );
       }
+    | FLOAT_NUMBER
+      {
+          $$ = std::make_unique<compiler::FloatExpr>(
+              $1, toSourceLocation(@1)
+          );
+      }
+    | STRING_LITERAL
+      {
+          $$ = std::make_unique<compiler::StringExpr>(
+              std::move($1), toSourceLocation(@1)
+          );
+      }
+    | CHARACTER_LITERAL
+      {
+          $$ = std::make_unique<compiler::CharacterExpr>(
+              std::move($1), toSourceLocation(@1)
+          );
+      }
     | IDENTIFIER
       {
           $$ = std::make_unique<compiler::IdentifierExpr>(
@@ -462,15 +499,13 @@ factor:
           );
       }
     | LPAREN expression RPAREN
-      {
-          $$ = std::move($2);
-      }
+      { $$ = std::move($2); }
     ;
 
 %%
 
 void yy::parser::error(
-    const location_type& loc,
+    const yy::parser::location_type& loc,
     const std::string& message
 ) {
     diagnostics.push_back({
