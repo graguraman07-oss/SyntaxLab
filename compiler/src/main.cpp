@@ -279,6 +279,7 @@ int main() {
     yy::parser parser(program, diagnostics);
     const int parseResult = parser.parse();
 
+    // If parsing fails, preserve and report syntax diagnostics.
     if (parseResult != 0) {
         std::cout << "{\"success\":false,";
 
@@ -291,9 +292,17 @@ int main() {
         return 1;
     }
 
+    // Run semantic analysis without discarding syntax diagnostics.
     compiler::SemanticAnalyzer analyzer;
-    diagnostics = analyzer.analyze(program);
+    auto semanticDiagnostics = analyzer.analyze(program);
 
+    diagnostics.insert(
+        diagnostics.end(),
+        semanticDiagnostics.begin(),
+        semanticDiagnostics.end()
+    );
+
+    // Output the final compiler response.
     std::cout << "{\"success\":"
               << (diagnostics.empty() ? "true" : "false")
               << ",";
